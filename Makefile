@@ -26,14 +26,15 @@ include $(DEVKITARM)/3ds_rules
 #     - icon.png
 #     - <libctru folder>/default_icon.png
 #---------------------------------------------------------------------------------
-TARGET		:=	$(notdir $(CURDIR))
+TARGET		:=	Othello
 BUILD		:=	build
-SOURCES		:=	source
+SOURCES		:=	source source/textures
 DATA		:=	data
 INCLUDES	:=	include
-APP_TITLE	:=	Mastermind
-APP_DESCRIPTION	:=	Break the color code
-APP_AUTHOR	:=	Jasper Peters
+
+APP_TITLE		:= Othello
+APP_DESCRIPTION	:= Get the most of your color on the field!
+APP_AUTHOR		:= Jasper Peters
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -44,20 +45,20 @@ CFLAGS	:=	-g -Wall -O2 -mword-relocations \
 			-fomit-frame-pointer -ffast-math \
 			$(ARCH)
 
-CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS -std=gnu11
+CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS
 
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lctru -lm
+LIBS	:= -lsf2d -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:= $(CTRULIB)
+LIBDIRS	:= $(CTRULIB) $(CURDIR)/../libsf2d
 
 
 #---------------------------------------------------------------------------------
@@ -116,6 +117,10 @@ else
 	export APP_ICON := $(TOPDIR)/$(ICON)
 endif
 
+ifeq ($(strip $(NO_SMDH)),)
+	export _3DSXFLAGS += --smdh=$(CURDIR)/$(TARGET).smdh
+endif
+
 .PHONY: $(BUILD) clean all
 
 #---------------------------------------------------------------------------------
@@ -123,13 +128,33 @@ all: $(BUILD)
 
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
-	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(TARGET).3dsx $(OUTPUT).smdh $(TARGET).elf
-
+	@rm -fr $(BUILD) $(TARGET).3dsx $(OUTPUT).smdh $(TARGET).elf $(TARGET)-strip.elf $(TARGET).cia $(TARGET).3ds
+#---------------------------------------------------------------------------------
+$(TARGET)-strip.elf: $(BUILD)
+	@$(STRIP) --strip-all $(TARGET).elf -o $(TARGET)-strip.elf
+#---------------------------------------------------------------------------------
+cci: $(TARGET)-strip.elf
+	@makerom -f cci -rsf resources/$(TARGET).rsf -target d -exefslogo -elf $(TARGET)-strip.elf -o $(TARGET).3ds
+	@echo "built ... sf2d_sample.3ds"
+#---------------------------------------------------------------------------------
+cia: $(TARGET)-strip.elf
+	@makerom -f cia -o $(TARGET).cia -elf $(TARGET)-strip.elf -rsf resources/$(TARGET).rsf -icon resources/icon.icn -banner resources/banner.bnr -exefslogo -target t
+	@echo "built ... sf2d_sample.cia"
+#---------------------------------------------------------------------------------
+send: $(BUILD)
+	@3dslink $(TARGET).3dsx
+#---------------------------------------------------------------------------------
+run: $(BUILD)
+	@citra $(TARGET).3dsx
+#---------------------------------------------------------------------------------
+copy_cia: $(TARGET).cia
+	@cp $(TARGET).cia /mnt/GATEWAYNAND
+	sync
 
 #---------------------------------------------------------------------------------
 else
@@ -140,10 +165,11 @@ DEPENDS	:=	$(OFILES:.o=.d)
 # main targets
 #---------------------------------------------------------------------------------
 ifeq ($(strip $(NO_SMDH)),)
-.PHONY: all
-all	:	$(OUTPUT).3dsx $(OUTPUT).smdh
-endif
+$(OUTPUT).3dsx	:	$(OUTPUT).elf $(OUTPUT).smdh
+else
 $(OUTPUT).3dsx	:	$(OUTPUT).elf
+endif
+
 $(OUTPUT).elf	:	$(OFILES)
 
 #---------------------------------------------------------------------------------
