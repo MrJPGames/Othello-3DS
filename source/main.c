@@ -23,6 +23,12 @@ bool GameOver=false;
 int turns=0;
 int scores[90][2];
 int win; //Color of winner
+int action=1; //Make new animation system work in worst way possible ;)
+float scale_board[8][8];
+float scale;
+float animateTime=0;
+int menu=1;
+int menstate=0;
 
 touchPosition touch;
 
@@ -45,12 +51,23 @@ void cloneField(){
 	}
 }
 
+void clearScaleBoard(){
+	int x,y;
+	for (x=0; x<8; x++){
+		for (y=0; y<8; y++){
+			scale_board[x][y]=1;
+		}
+	}
+}
+
 void fillArea(int x1, int y1, int x2, int y2, int col){
 	int x,y,z;
 	if (y1 == y2 || x1 == x2){
 		for (x=x1; x<=x2;x++){
 			for (y=y1; y<=y2;y++){
 				board[x][y]=col;
+				scale_board[x][y]=0;
+				animateTime=0;
 			}
 		}
 	}else{
@@ -64,6 +81,8 @@ void fillArea(int x1, int y1, int x2, int y2, int col){
 			dirx=1;
 		for (z=0; z<=(x2-x1); z++){
 			board[x+z*dirx][y+z*diry]=col;
+			scale_board[x+z*dirx][y+z*diry]=0;
+			animateTime=0;
 		}
 	}
 }
@@ -244,6 +263,12 @@ bool endTurn(int col){
 		scores[x][0]=getScore(2);
 		scores[x][1]=getScore(1);
 	}
+	float temp_scale_board[8][8];
+	for (x=0; x<8; x++){
+		for (y=0; y<8; y++){
+			temp_scale_board[x][y]=scale_board[x][y];
+		}
+	}
 	int col2=col-2*col+3;
 	if (!updatePossBoard(col2)){
 		ret=true;
@@ -259,6 +284,12 @@ bool endTurn(int col){
 			}
 		}
 	}
+	for (x=0; x<8; x++){
+		for (y=0; y<8; y++){
+			scale_board[x][y]=temp_scale_board[x][y];
+		}
+	}
+	animateTime=0;
 	return ret;
 }
 
@@ -360,12 +391,11 @@ void cpuTurn(int col){
 			board[x][y]=temp_board[x][y];
 		}
 	}
-	if (bestImprovement != 0){
+	if (bestImprovement > -9000){
+		clearScaleBoard();
 		placeTile(movex,movey,col);
-		animation();
-		if (endTurn(col)){
-			cpuTurn(col);
-		}
+		endTurn(col);
+		animateTime=0;
 	}
 }
 
@@ -374,6 +404,7 @@ void resetGame(){
 	for (x=0;x<8;x++){
 		for (y=0;y<8;y++){
 			board[x][y]=0;
+			temp_board[x][y]=0;
 			poss_board[x][y]=0;
 		}
 	}
@@ -388,6 +419,7 @@ void resetGame(){
 	board[4][4]=1;
 	board[3][4]=2;
 	board[4][3]=2;
+	clearScaleBoard();
 	updatePossBoard(1);
 }
 
@@ -428,55 +460,93 @@ int main(int argc, char * argv[])
 	sf2d_texture *t_poss_space = sf2d_create_texture_mem_RGBA8(tex_poss_space.pixel_data, tex_poss_space.width, tex_poss_space.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
 	sf2d_texture *t_gameover = sf2d_create_texture_mem_RGBA8(tex_gameover.pixel_data, tex_gameover.width, tex_gameover.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
 	sf2d_texture *t_difficulty = sf2d_create_texture_mem_RGBA8(tex_difficulty.pixel_data, tex_difficulty.width, tex_difficulty.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
+	sf2d_texture *t_menu = sf2d_create_texture_mem_RGBA8(tex_menu.pixel_data, tex_menu.width, tex_menu.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
+	sf2d_texture *t_turn = sf2d_create_texture_mem_RGBA8(tex_turn.pixel_data, tex_turn.width, tex_turn.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
 
-	int b1,b2,w1,w2,b,w,x,y,lal;
-	float scale;
+	int x,y;
 	while (aptMainLoop()){
 		hidScanInput();
 		hidTouchRead(&touch);
 		u32 kDown = hidKeysDown();
 		//u32 kHeld = hidKeysHeld();
-		if (mode == 0){
-			mode=2;//Add menu
-			resetGame();
-			updatePossBoard(1);
+		if (menu == 1){
+			if (menstate == 0){
+				if (touchInBox(touch, 41, 73, 130, 48)){
+					resetGame();
+					clearScaleBoard();
+					mode=1;
+					menu=0;
+				}
+				if (touchInBox(touch, 41, 124, 130,48))
+					menstate=1;
+			}else{
+				if (touchInBox(touch, 41, 77, 130, 30)){
+					resetGame();
+					clearScaleBoard();
+					cpuDifficulty=0;
+					mode=2;
+					menu=0;
+				}
+				if (touchInBox(touch, 41, 109, 130, 30)){
+					resetGame();
+					clearScaleBoard();
+					cpuDifficulty=1;
+					mode=2;
+					menu=0;
+				}
+				if (touchInBox(touch, 41, 141, 130, 30)){
+					resetGame();
+					clearScaleBoard();
+					cpuDifficulty=2;
+					mode=2;
+					menu=0;
+				}
+				if (touchInBox(touch, 42, 68, 26, 7)){
+					menstate=0;
+				}
+			}
+			if (touchInBox(touch, 165, 67, 7, 7)){
+				menu=0;
+			}
 		}else if (mode == 1 && !GameOver){//Local 2-Player
-			getTouchBoardXY(touch);
-			if (input[0] != -1){
-				if (placeTile(input[0], input[1], turn+1)){
-					if (!endTurn(turn+1))
-						turn=-turn+1;
+			if (action == 1){
+				getTouchBoardXY(touch);
+				if (input[0] != -1){
+					if (placeTile(input[0], input[1], turn+1)){
+						if (!endTurn(turn+1)){
+							turn=-turn+1;
+							action=3;
+						}
+					}
 				}
 			}
 		}else if (mode == 2 && !GameOver){//Agains CPU
-			getTouchBoardXY(touch);
-			if (input[0] != -1){
-				cloneField();
-				if (placeTile(input[0], input[1], 1)){
-					animation();
-					endTurn(1);
-					cpuTurn(2);
+			if (action == 1){
+				getTouchBoardXY(touch);
+				if (input[0] != -1){
+					cloneField();
+					clearScaleBoard();
+					if (placeTile(input[0], input[1], 1)){
+						endTurn(1);
+						action=4;
+					}
 				}
+			}else if (action == 2){
+				cpuTurn(2);
+				action=3;
 			}
 		}else if (!GameOver){
-			cpuTurn(turn+1);
-			turn=-turn+1;
+			if (action == 1){
+				cpuTurn(turn+1);
+				turn=-turn+1;
+				action=3;
+			}
 		}
 		if (kDown & KEY_START)
 			break;
-		if (kDown & KEY_UP){
-			mode=1;
-			resetGame();
-		}
-		if (kDown & KEY_DOWN){
-			mode=2;
-			resetGame();
-		}
-		if (kDown & KEY_A){
-			mode=3;
-		}
-		if (kDown & KEY_B){
-			resetGame();
+		if (touchInBox(touch, 239, 216, 81, 24)){
+			menu=1;
+			menstate=0;
 		}
 		//render();
 		sf2d_start_frame(GFX_TOP, GFX_LEFT);
@@ -499,7 +569,8 @@ int main(int argc, char * argv[])
 						drawLine(w,q,r,e,RGBA8(0xFF, 0xFF, 0xFF, 0xFF));
 				}
 			}
-			sf2d_draw_texture_part(t_modes, 265, 212, 135*(mode-1), 0, 135, 28);
+			if (mode >= 1 && mode <= 3)
+				sf2d_draw_texture_part(t_modes, 265, 212, 135*(mode-1), 0, 135, 28);
 			if (mode == 2)
 				sf2d_draw_texture_part(t_difficulty, 292, 182, 108*cpuDifficulty, 0, 108, 30);
 			if (GameOver)
@@ -510,13 +581,31 @@ int main(int argc, char * argv[])
 			sf2d_draw_texture(t_bottom, 0, 0);
 			for (x=0; x<8; x++){
 				for (y=0; y<8; y++){
-					if (board[x][y] == 1){
-						sf2d_draw_texture(t_whitedisk, 9+28*x, 9+28*y);
-					}else if (board[x][y] == 2){
-						sf2d_draw_texture(t_blackdisk, 9+28*x, 9+28*y);
+					if ((action == 1 && mode == 2) || (mode == 1 && action <=2)){
+						if (poss_board[x][y] == 1)
+							sf2d_draw_texture(t_poss_space, 19+28*x, 19+28*y);
 					}
-					if (poss_board[x][y] == 1)
-						sf2d_draw_texture(t_poss_space, 19+28*x, 19+28*y);
+					scale=scale_board[x][y];
+					if (scale < 1){
+						scale_board[x][y]+=0.05;
+						animateTime=scale_board[x][y];
+					}else if (action > 2 && animateTime >= 1){
+						action-=2;
+						clearScaleBoard();
+					}
+					if (board[x][y] == 1){
+						sf2d_draw_texture_scale(t_whitedisk, 9+28*x+(14-scale*14), 9+28*y+(14-scale*14), scale, scale);
+					}else if (board[x][y] == 2){
+						sf2d_draw_texture_scale(t_blackdisk, 9+28*x+(14-scale*14), 9+28*y+(14-scale*14), scale ,scale);
+					}
+				}
+			}
+			if (mode == 1){
+				sf2d_draw_texture(t_turn, 237, 8);
+				if (turn == 1){
+					sf2d_draw_texture(t_blackdisk, 265, 50);
+				}else{
+					sf2d_draw_texture(t_whitedisk, 265, 50);
 				}
 			}
 			b=getScore(2);
@@ -531,6 +620,19 @@ int main(int argc, char * argv[])
 			if (w1 != 0)
 				sf2d_draw_texture_part(t_numbers, 297, 196, 10*w1, 0, 10, 14);
 			sf2d_draw_texture_part(t_numbers, 307, 196, 10*w2, 0, 10, 14);
+
+			if (menu != 0){
+				sf2d_draw_texture_part(t_menu, 36, 64, 0, 0, 142, 114);
+				if (menu == 1){
+					if (menstate == 0){
+						sf2d_draw_texture_part(t_menu, 41, 73, 0, 114, 130, 48);
+						sf2d_draw_texture_part(t_menu, 41, 124, 0, 162, 130, 48);
+					}else{
+						sf2d_draw_texture_part(t_menu, 41, 77, 0, 210, 130, 94);
+						sf2d_draw_texture_part(t_menu, 42, 67, 0, 304, 26, 7);
+					}
+				}
+			}
 		sf2d_end_frame();
 
 		sf2d_swapbuffers();
@@ -544,6 +646,8 @@ int main(int argc, char * argv[])
 	sf2d_free_texture(t_difficulty);
 	sf2d_free_texture(t_modes);
 	sf2d_free_texture(t_numbers);
+	sf2d_free_texture(t_menu);
+	sf2d_free_texture(t_turn);
 
 	sf2d_fini();
 	return 0;
