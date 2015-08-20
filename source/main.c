@@ -29,6 +29,16 @@ float scale;
 float animateTime=0;
 int menu=1;
 int menstate=0;
+int posVal[8][8]={
+	{50 ,-50,5,5,5,5,-50,50 },
+	{-50,-50,0,0,0,0,-50,-50},
+	{5  ,0  ,6,0,0,0,6  ,5  },
+	{5  ,0  ,0,0,0,0,0  ,5  },
+	{5  ,0  ,0,0,0,0,0  ,5  },
+	{5  ,0  ,6,0,0,0,6  ,5  },
+	{-50,-50,0,0,0,0,-50,-50},
+	{50 ,-50,5,5,5,5,-50,50 }
+};
 
 touchPosition touch;
 
@@ -293,105 +303,95 @@ bool endTurn(int col){
 	return ret;
 }
 
-void cpuTurn(int col){
-	//canPlay(col);
-	u64 timeInSeconds = osGetTime() / 1000;
-	srand (timeInSeconds);
-	int baseScore=getScore(col);
-	int bestImprovement=-9000; //Makes negative moves posible to avoid cpu not making a turn due to bad outcome, as the CPU has to make a turn if it can/
-	int tryImprovement;
-	int h_col=col-2*col+3;
-	int h_bestImprovement=-1000;
-	int h_tryImprovement=0;
-	int h_baseScore=getScore(h_col);
-	int movex=0,movey=0;
-	int corner_reward=40;
-	if (cpuDifficulty == 2){
-		corner_reward=10000; //Evens out if the player can get a corner due to this move;
-	}
-	int x,y,j,k,m;
-	int hp_board[8][8]; //Human players next board with current cpu turn? IDK how to describe it!
-	cloneField();
-	for (x=0; x<8; x++){
-		for (y=0; y<8; y++){
-			for (j=0; j<8; j++){
-				for (k=0; k<8; k++){
-					board[j][k]=temp_board[j][k];
-				}
-			}
-			if (placeTile(x,y,col)){
-				tryImprovement=getScore(col)-baseScore+((rand() % 3)-1);
-				if (cpuDifficulty > 0){
-					for (j=0; j<8; j++){
-						for (k=0; k<8; k++){
-							hp_board[j][k]=board[j][k];
-						}
-					}
-				}
-				if (cpuDifficulty == 1){
-					for (m=0; m<4; m++){
-						for (j=0; j<8; j++){
-							for (k=0; k<8; k++){
-								board[j][k]=hp_board[j][k];
-							}
-						}
-						switch(m){
-							case 0:
-								if (placeTile(0,0, h_col))
-									tryImprovement-=15;
-								break;
-							case 1:
-								if (placeTile(0,7, h_col))
-									tryImprovement-=15;
-								break;
-							case 2:
-								if (placeTile(7,0, h_col))
-									tryImprovement-=15;
-								break;
-							case 3:
-								if (placeTile(7,7, h_col))
-									tryImprovement-=15;
-								break;
-						}
-					}
-				}else if (cpuDifficulty == 2){
-					int q,w,e,r;
-					h_bestImprovement=-1000;
-					for (q=0; q<8; q++){
-						for (w=0; w<8; w++){
-							for (e=0; e<8; e++){
-								for (r=0; r<8; r++){
-									board[e][r]=hp_board[e][r];
-								}
-							}
-							if (placeTile(q,w,h_col)){
-								h_tryImprovement=getScore(h_col)-h_baseScore+((rand() % 3)-1);
-							}
-							if ((q == 0 && w == 0) || (q == 7 && w == 0) || (q == 7 && w == 7) || (q == 0 && w == 7))
-								h_tryImprovement+=500; //If CPU can avoid giving you a corner it will!
-							if (h_tryImprovement > h_bestImprovement){
-								h_bestImprovement=h_tryImprovement;
-							}
-						}
-					}
-					tryImprovement-=h_bestImprovement;
-				}
-				if ((x == 0 && y == 0) || (x == 7 && y == 0) || (x == 7 && y == 7) || (x == 0 && y == 7))
-					tryImprovement+=corner_reward;
-				if (tryImprovement > bestImprovement){
-					bestImprovement=tryImprovement;
-					movex=x;
-					movey=y;
-				}
-			}
-		}
-	}
+void resetFieldFromTemp(){
+	int x,y;
 	for (x=0; x<8; x++){
 		for (y=0; y<8; y++){
 			board[x][y]=temp_board[x][y];
 		}
 	}
-	if (bestImprovement > -9000){
+}
+
+int evalPos(int x, int y, int cpuDifficulty){
+	if (cpuDifficulty == 0){
+		if (x == 0 || y == 0 || x == 7 || y == y){
+			return 5;
+		}else{
+			return 0;
+		}
+	}else if (cpuDifficulty == 1){
+		if ((x == 0 && y == 0) || (x == 7 && y == 7) || (x == 0 && y == 7) || (x == 7 && y == 0)){
+			return 50;
+		}else{
+			return 0;
+		}
+	}else{
+		return posVal[x][y];
+	}
+}
+
+void cpuTurn(int col){
+	//canPlay(col);
+	u64 timeInSeconds = osGetTime() / 1000;
+	srand (timeInSeconds);
+	int o_col=col-2*col+3;
+
+	int baseScore=getScore(col);
+	int o_baseScore=getScore(o_col);
+	int bonus=0;
+	int o_bonus=0;
+	int curAttempt=0;
+	int o_curAttempt=0;
+	int bestAttempt=-9000;
+	int o_bestAttempt=-9000;
+
+	int movex=0,movey=0;
+	int x,y;
+	int j,k,w,e;
+	int o_board[8][8]; //Oponents board with current cpu turn? IDK how to describe it!
+	cloneField();
+	
+	for (x=0; x<8; x++){
+		for (y=0; y<8; y++){
+			resetFieldFromTemp();
+			if (board[x][y] == 0){
+				if (placeTile(x,y,col)){
+					bonus=evalPos(x,y, cpuDifficulty);
+					if (cpuDifficulty == 2){
+						for (w=0; w<8; w++){
+							for (e=0; e<8; e++){
+								for (j=0; j<8; j++){
+									for (k=0; k<8; k++){
+										o_board[x][y]=board[x][y];
+									}
+								}
+								if (placeTile(x,y,o_col)){
+									o_curAttempt=evalPos(x,y,2);
+									if (o_curAttempt > o_bestAttempt){
+										o_bestAttempt=o_curAttempt;
+									}
+								}
+							}
+						}
+						bonus-=o_bestAttempt;
+					}
+					curAttempt=getScore(col)-baseScore+bonus;
+					if (curAttempt > bestAttempt){
+						movex=x;
+						movey=y;
+						bestAttempt=curAttempt;
+					}
+				}
+			}
+		}
+	}
+
+	for (x=0; x<8; x++){
+		for (y=0; y<8; y++){
+			board[x][y]=temp_board[x][y];
+		}
+	}
+	if (bestAttempt > -9000){
 		clearScaleBoard();
 		placeTile(movex,movey,col);
 		endTurn(col);
@@ -476,6 +476,8 @@ int main(int argc, char * argv[])
 					clearScaleBoard();
 					mode=1;
 					menu=0;
+					action=1;
+					turn=0;
 				}
 				if (touchInBox(touch, 41, 124, 130,48))
 					menstate=1;
@@ -486,6 +488,7 @@ int main(int argc, char * argv[])
 					cpuDifficulty=0;
 					mode=2;
 					menu=0;
+					action=1;
 				}
 				if (touchInBox(touch, 41, 109, 130, 30)){
 					resetGame();
@@ -493,6 +496,7 @@ int main(int argc, char * argv[])
 					cpuDifficulty=1;
 					mode=2;
 					menu=0;
+					action=1;
 				}
 				if (touchInBox(touch, 41, 141, 130, 30)){
 					resetGame();
@@ -500,6 +504,7 @@ int main(int argc, char * argv[])
 					cpuDifficulty=2;
 					mode=2;
 					menu=0;
+					action=1;
 				}
 				if (touchInBox(touch, 42, 68, 26, 7)){
 					menstate=0;
@@ -547,6 +552,12 @@ int main(int argc, char * argv[])
 		if (touchInBox(touch, 239, 216, 81, 24)){
 			menu=1;
 			menstate=0;
+		}
+		if (touchInBox(touch, 239, 0, 81, 23)){
+			resetGame();
+			clearScaleBoard();
+			action=1;
+			turn=0;
 		}
 		//render();
 		sf2d_start_frame(GFX_TOP, GFX_LEFT);
@@ -601,11 +612,11 @@ int main(int argc, char * argv[])
 				}
 			}
 			if (mode == 1){
-				sf2d_draw_texture(t_turn, 237, 8);
+				sf2d_draw_texture(t_turn, 237, 35);
 				if (turn == 1){
-					sf2d_draw_texture(t_blackdisk, 265, 50);
+					sf2d_draw_texture(t_blackdisk, 265, 77);
 				}else{
-					sf2d_draw_texture(t_whitedisk, 265, 50);
+					sf2d_draw_texture(t_whitedisk, 265, 77);
 				}
 			}
 			b=getScore(2);
