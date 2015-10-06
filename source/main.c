@@ -235,7 +235,7 @@ int getScore(int col){
 	return ret;
 }
 
-bool updatePossBoard(int col){ //Updates pos board for given col, returns if any move is even possible
+bool updatePossBoard(int col){ //Updates pos board for given col, returns true if any move is even possible
 	int x,y,j,k;
 	bool ret=false;
 	cloneField();
@@ -358,6 +358,8 @@ void cpuTurn(int col){
 				if (placeTile(x,y,col)){
 					bonus=evalPos(x,y, cpuDifficulty);
 					if (cpuDifficulty == 2){
+						o_curAttempt=0;
+						o_bestAttempt=-9000;
 						for (w=0; w<8; w++){
 							for (e=0; e<8; e++){
 								for (j=0; j<8; j++){
@@ -373,6 +375,8 @@ void cpuTurn(int col){
 								}
 							}
 						}
+						if (o_bestAttempt == -9000)
+							o_bestAttempt=-100; //If the oponent cannot make a move this is of advantage to the CPU
 						bonus-=o_bestAttempt;
 					}
 					curAttempt=getScore(col)-baseScore+bonus;
@@ -394,7 +398,6 @@ void cpuTurn(int col){
 	if (bestAttempt > -9000){
 		clearScaleBoard();
 		placeTile(movex,movey,col);
-		endTurn(col);
 		animateTime=0;
 	}
 }
@@ -449,7 +452,7 @@ void drawLine(int w, int q, int r, int e, u32 col){
 int main(int argc, char * argv[])
 {
 	sf2d_init();
-	sf2d_set_clear_color(RGBA8(0x40, 0x40, 0x40, 0xFF));
+	sf2d_set_clear_color(RGBA8(0xEB, 0xE8, 0xE3, 0xFF));
 
 	sf2d_texture *t_bottom = sf2d_create_texture_mem_RGBA8(tex_bottom.pixel_data, tex_bottom.width, tex_bottom.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
 	sf2d_texture *t_top = sf2d_create_texture_mem_RGBA8(tex_top.pixel_data, tex_top.width, tex_top.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
@@ -532,13 +535,20 @@ int main(int argc, char * argv[])
 					cloneField();
 					clearScaleBoard();
 					if (placeTile(input[0], input[1], 1)){
-						endTurn(1);
-						action=4;
+						if (!endTurn(1)){
+							action=4;
+						}else{
+							action=3;
+						}
 					}
 				}
 			}else if (action == 2){
 				cpuTurn(2);
-				action=3;
+				if (!endTurn(2)){
+					action=3;
+				}else{
+					action=4;
+				}
 			}
 		}else if (!GameOver){
 			if (action == 1){
@@ -604,6 +614,7 @@ int main(int argc, char * argv[])
 						action-=2;
 						clearScaleBoard();
 					}
+					scale=1.5-scale/2;
 					if (board[x][y] == 1){
 						sf2d_draw_texture_scale(t_whitedisk, 9+28*x+(14-scale*14), 9+28*y+(14-scale*14), scale, scale);
 					}else if (board[x][y] == 2){
