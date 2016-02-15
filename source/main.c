@@ -1,9 +1,14 @@
 #include <3ds.h>
-#include <sf2d.h> //Yeah to hardware rendering!
+#include <sf2d.h>
+#include <sfil.h>
 #include <stdlib.h>
 #include <math.h>
 #include "touch.h"
-#include "textures.h"
+
+//Reviewing this piece of code, this could have been done a lot better (especially the AI)
+//I learned from this project, but you probably won't. 3DS specific stuff is pretty ok though
+//so if that's why you are here go ahead and sniff around how I did certain 3DS related things.
+
 
 //Init vars
 int board[8][8];
@@ -449,22 +454,41 @@ void drawLine(int w, int q, int r, int e, u32 col){
 		sf2d_draw_line(w,q,r,e,col);
 }
 
+
 int main(int argc, char * argv[])
 {
-	sf2d_init();
-	sf2d_set_clear_color(RGBA8(0xEB, 0xE8, 0xE3, 0xFF));
+	romfsInit();
 
-	sf2d_texture *t_bottom = sf2d_create_texture_mem_RGBA8(tex_bottom.pixel_data, tex_bottom.width, tex_bottom.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
-	sf2d_texture *t_top = sf2d_create_texture_mem_RGBA8(tex_top.pixel_data, tex_top.width, tex_top.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
-	sf2d_texture *t_modes = sf2d_create_texture_mem_RGBA8(tex_modes.pixel_data, tex_modes.width, tex_modes.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
-	sf2d_texture *t_numbers = sf2d_create_texture_mem_RGBA8(tex_numbers.pixel_data, tex_numbers.width, tex_numbers.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
-	sf2d_texture *t_blackdisk = sf2d_create_texture_mem_RGBA8(tex_blackdisk.pixel_data, tex_blackdisk.width, tex_blackdisk.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
-	sf2d_texture *t_whitedisk = sf2d_create_texture_mem_RGBA8(tex_whitedisk.pixel_data, tex_whitedisk.width, tex_whitedisk.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
-	sf2d_texture *t_poss_space = sf2d_create_texture_mem_RGBA8(tex_poss_space.pixel_data, tex_poss_space.width, tex_poss_space.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
-	sf2d_texture *t_gameover = sf2d_create_texture_mem_RGBA8(tex_gameover.pixel_data, tex_gameover.width, tex_gameover.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
-	sf2d_texture *t_difficulty = sf2d_create_texture_mem_RGBA8(tex_difficulty.pixel_data, tex_difficulty.width, tex_difficulty.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
-	sf2d_texture *t_menu = sf2d_create_texture_mem_RGBA8(tex_menu.pixel_data, tex_menu.width, tex_menu.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
-	sf2d_texture *t_turn = sf2d_create_texture_mem_RGBA8(tex_turn.pixel_data, tex_turn.width, tex_turn.height, TEXFMT_RGBA8, SF2D_PLACE_RAM);
+	sf2d_init();
+	sf2d_set_clear_color(RGBA8(235, 232, 227, 255));
+
+
+	sf2d_texture *t_loading = sfil_load_PNG_file("romfs:/Loading.png", SF2D_PLACE_RAM);
+
+	sf2d_start_frame(GFX_TOP, GFX_LEFT);
+
+	sf2d_end_frame();
+
+	sf2d_start_frame(GFX_TOP, GFX_LEFT);
+		sf2d_draw_texture(t_loading, 200, 190);
+	sf2d_end_frame();
+
+
+	sf2d_free_texture(t_loading);
+
+	sf2d_swapbuffers();
+
+	sf2d_texture *t_bottom = sfil_load_PNG_file("romfs:/Bottom.png", SF2D_PLACE_RAM);
+	sf2d_texture *t_top = sfil_load_PNG_file("romfs:/Top.png", SF2D_PLACE_RAM);
+	sf2d_texture *t_modes = sfil_load_PNG_file("romfs:/Modes.png", SF2D_PLACE_RAM);
+	sf2d_texture *t_numbers = sfil_load_PNG_file("romfs:/Numbers.png", SF2D_PLACE_RAM);
+	sf2d_texture *t_blackdisk = sfil_load_PNG_file("romfs:/DiskBlack.png", SF2D_PLACE_RAM);
+	sf2d_texture *t_whitedisk = sfil_load_PNG_file("romfs:/DiskWhite.png", SF2D_PLACE_RAM);
+	sf2d_texture *t_poss_space = sfil_load_PNG_file("romfs:/PossSpace.png", SF2D_PLACE_RAM);
+	sf2d_texture *t_gameover = sfil_load_PNG_file("romfs:/GameOver.png", SF2D_PLACE_RAM);
+	sf2d_texture *t_difficulty = sfil_load_PNG_file("romfs:/Difficulty.png", SF2D_PLACE_RAM);
+	sf2d_texture *t_menu = sfil_load_PNG_file("romfs:/MenuButtons.png", SF2D_PLACE_RAM);
+	sf2d_texture *t_turn = sfil_load_PNG_file("romfs:/Turn.png", SF2D_PLACE_RAM);
 
 	int x,y;
 	while (aptMainLoop()){
@@ -672,5 +696,7 @@ int main(int argc, char * argv[])
 	sf2d_free_texture(t_turn);
 
 	sf2d_fini();
+
+	romfsExit();
 	return 0;
 }
