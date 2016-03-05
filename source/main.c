@@ -2,7 +2,9 @@
 #include <sf2d.h>
 #include <sfil.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
+#include <string.h>
 #include "touch.h"
 
 //Reviewing this piece of code, this could have been done a lot better (especially the AI)
@@ -458,6 +460,7 @@ void drawLine(int w, int q, int r, int e, u32 col){
 int main(int argc, char * argv[])
 {
 	romfsInit();
+	ndspInit();
 
 	sf2d_init();
 	sf2d_set_clear_color(RGBA8(235, 232, 227, 255));
@@ -478,6 +481,103 @@ int main(int argc, char * argv[])
 
 	sf2d_swapbuffers();
 
+	//Load background music from romfs
+	
+	ndspSetOutputMode(NDSP_OUTPUT_STEREO);
+	ndspSetOutputCount(1); // Num of buffers
+	
+	const int channel = 1;
+	u32 sampleRate;
+	u32 dataSize;
+	u16 channels;
+	u16 bitsPerSample;
+	// Reading wav file
+	FILE* fp = fopen("romfs:/bgm.wav", "rb");
+	
+	if(!fp)
+	{
+		printf("Could not open the example.wav file.\n");
+		return 1;
+	}
+	
+	char signature[4];
+	
+	fread(signature, 1, 4, fp);
+	
+	if( signature[0] != 'R' &&
+		signature[1] != 'I' &&
+		signature[2] != 'F' &&
+		signature[3] != 'F')
+	{
+		printf("Wrong file format.\n");
+		fclose(fp);
+		return 1;
+	}
+	
+	//fseek(fp, 40, SEEK_SET);
+	//fread(&dataSize, 4, 1, fp);
+	fseek(fp,0,SEEK_END);
+    dataSize = ftell(fp);
+	fseek(fp, 22, SEEK_SET);
+	fread(&channels, 2, 1, fp);
+	fseek(fp, 24, SEEK_SET);
+	fread(&sampleRate, 4, 1, fp);
+	fseek(fp, 34, SEEK_SET);
+	fread(&bitsPerSample, 2, 1, fp);
+	
+	if(dataSize == 0 || (channels != 1 && channels != 2) ||
+		(bitsPerSample != 8 && bitsPerSample != 16))
+	{
+		printf("Corrupted wav file.\n");
+		fclose(fp);
+		return 1;
+	}
+	
+	// Allocating and reading samples
+	u8* data = linearAlloc(dataSize);
+	
+	if(!data)
+	{
+		fclose(fp);
+		return 1;
+	}
+	
+	fseek(fp, 44, SEEK_SET);
+	fread(data, 1, dataSize, fp);
+	fclose(fp);
+	
+	// Find the right format
+	u16 ndspFormat;
+	
+	if(bitsPerSample == 8)
+	{
+		ndspFormat = (channels == 1) ?
+			NDSP_FORMAT_MONO_PCM8 :
+			NDSP_FORMAT_STEREO_PCM8;
+	}
+	else
+	{
+		ndspFormat = (channels == 1) ?
+			NDSP_FORMAT_MONO_PCM16 :
+			NDSP_FORMAT_STEREO_PCM16;
+	}
+	
+	ndspChnReset(channel);
+	ndspChnSetInterp(channel, NDSP_INTERP_NONE);
+	ndspChnSetRate(channel, (float)sampleRate);
+	ndspChnSetFormat(channel, ndspFormat);
+	
+	// Create and play a wav buffer
+	ndspWaveBuf waveBuf;
+	memset(&waveBuf, 0, sizeof(ndspWaveBuf));
+	
+	waveBuf.data_vaddr = (const void*)data;
+	waveBuf.nsamples = dataSize / (bitsPerSample >> 3);
+	waveBuf.looping = true; // Loop enabled
+	waveBuf.status = NDSP_WBUF_FREE;
+	
+	DSP_FlushDataCache(data, dataSize);
+
 	sf2d_texture *t_bottom = sfil_load_PNG_file("romfs:/Bottom.png", SF2D_PLACE_RAM);
 	sf2d_texture *t_top = sfil_load_PNG_file("romfs:/Top.png", SF2D_PLACE_RAM);
 	sf2d_texture *t_modes = sfil_load_PNG_file("romfs:/Modes.png", SF2D_PLACE_RAM);
@@ -491,6 +591,11 @@ int main(int argc, char * argv[])
 	sf2d_texture *t_turn = sfil_load_PNG_file("romfs:/Turn.png", SF2D_PLACE_RAM);
 
 	int x,y;
+	ndspChnWaveBufAdd(channel, &waveBuf);
+	//ndspChnSetPaused(0, false); //Just to be safe? XD
+	//DSP_FlushDataCache(&bgMusic_buffer, audiobuf_size);
+	//csndPlaySound(0x8, SOUND_ONE_SHOT | SOUND_FORMAT_16BIT, 16360, 1.0, 0.0, (u32*)bgMusic_buffer, (u32*)bgMusic_buffer, bgMusic_buf_pos);
+		
 	while (aptMainLoop()){
 		hidScanInput();
 		hidTouchRead(&touch);
@@ -696,7 +801,11 @@ int main(int argc, char * argv[])
 	sf2d_free_texture(t_turn);
 
 	sf2d_fini();
-
+	
+	ndspChnWaveBufClear(channel);
+	
+	linearFree(data);
+	ndspExit();
 	romfsExit();
 	return 0;
 }

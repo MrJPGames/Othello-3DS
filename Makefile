@@ -31,10 +31,11 @@ BUILD		:=	build
 SOURCES		:=	source source/textures
 DATA		:=	data
 INCLUDES	:=	include
+ROMFS		:=	romfs
 
-APP_TITLE		:= Othello
+APP_TITLE		:= Reversi (Othello)
 APP_DESCRIPTION	:= Get the most of your color on the field!
-APP_AUTHOR		:= Jasper Peters
+APP_AUTHOR		:= Jasper Peters (MrJPGames)
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -52,13 +53,13 @@ CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lsf2d -lctru -lm
+LIBS	:= -lsf2d -lsfil -lpng -ljpeg -lz -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:= $(CTRULIB) $(CURDIR)/../libsf2d
+LIBDIRS	:= $(CTRULIB) $(PORTLIBS)
 
 
 #---------------------------------------------------------------------------------
@@ -119,6 +120,10 @@ endif
 
 ifeq ($(strip $(NO_SMDH)),)
 	export _3DSXFLAGS += --smdh=$(CURDIR)/$(TARGET).smdh
+endif
+
+ifneq ($(ROMFS),)
+	export _3DSXFLAGS += --romfs=$(CURDIR)/$(ROMFS)
 endif
 
 .PHONY: $(BUILD) clean all
